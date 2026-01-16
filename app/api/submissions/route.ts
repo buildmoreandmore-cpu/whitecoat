@@ -52,8 +52,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: submission.id }, { status: 201 })
   } catch (error) {
     console.error('Failed to create submission:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'Failed to create submission' },
+      { error: 'Failed to create submission', details: message },
       { status: 500 }
     )
   }

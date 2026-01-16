@@ -178,7 +178,8 @@ export default function QuestionnairePanel({
       })
 
       if (!response.ok) {
-        throw new Error('Failed to submit questionnaire')
+        const data = await response.json()
+        throw new Error(data.details || data.error || 'Failed to submit questionnaire')
       }
 
       setIsComplete(true)
