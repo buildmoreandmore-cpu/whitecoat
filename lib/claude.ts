@@ -1,8 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export interface AdConcept {
   adNumber: number;
@@ -74,11 +70,14 @@ Generate 10 diverse ad concepts that:
 - Address the brand's specific challenges and target audience`;
 
 export async function generateAdConcepts(submission: SubmissionData): Promise<AdConcept[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+    throw new Error('GEMINI_API_KEY environment variable is not set');
   }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const userPrompt = `Create 10 DTC ad concepts for the following brand:
 
@@ -102,26 +101,21 @@ Generate 10 unique ad concepts that:
 
 Return ONLY valid JSON, no markdown formatting or code blocks.`;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 8000,
-    messages: [
+  const result = await model.generateContent({
+    contents: [
       {
         role: 'user',
-        content: userPrompt,
+        parts: [{ text: DTC_INTELLIGENCE_BRIEF_SYSTEM_PROMPT + '\n\n' + userPrompt }],
       },
     ],
-    system: DTC_INTELLIGENCE_BRIEF_SYSTEM_PROMPT,
+    generationConfig: {
+      temperature: 0.8,
+      maxOutputTokens: 8000,
+    },
   });
 
-  // Extract text from response
-  const textContent = response.content.find(block => block.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
-    throw new Error('No text response from Claude');
-  }
-
-  // Parse JSON from response
-  let jsonText = textContent.text.trim();
+  const response = result.response;
+  let jsonText = response.text().trim();
 
   // Remove markdown code blocks if present
   if (jsonText.startsWith('```json')) {
@@ -141,7 +135,7 @@ Return ONLY valid JSON, no markdown formatting or code blocks.`;
     }
     return parsed.adConcepts as AdConcept[];
   } catch (error) {
-    console.error('Failed to parse Claude response:', jsonText);
+    console.error('Failed to parse Gemini response:', jsonText);
     throw new Error(`Failed to parse ad concepts: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
