@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
         currentRevenue: body.currentRevenue,
         biggestChallenge: body.biggestChallenge,
         targetAudience: body.targetAudience,
-        timeline: body.timeline,
-        howDidYouHear: body.howDidYouHear,
+        timeline: body.timeline || 'Not specified',
+        howDidYouHear: body.howDidYouHear || 'Not specified',
         additionalInfo: body.additionalInfo || null,
       },
     })
