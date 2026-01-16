@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { WebsiteInsights } from './website-scraper';
 
 export interface AdConcept {
   adNumber: number;
@@ -27,6 +28,7 @@ export interface SubmissionData {
   targetAudience: string;
   website?: string | null;
   additionalInfo?: string | null;
+  websiteInsights?: WebsiteInsights | null;
 }
 
 const DTC_INTELLIGENCE_BRIEF_SYSTEM_PROMPT = `You are an expert DTC (Direct-to-Consumer) advertising strategist specializing in healthcare and medical brands. Your task is to create compelling ad concepts that leverage the founder's medical credibility while adhering to advertising best practices.
@@ -78,6 +80,21 @@ export async function generateAdConcepts(submission: SubmissionData): Promise<Ad
 
   const ai = new GoogleGenAI({ apiKey });
 
+  // Build website insights section if available
+  let websiteSection = '';
+  if (submission.websiteInsights) {
+    const insights = submission.websiteInsights;
+    websiteSection = `
+**Website Analysis:**
+- Products/Services: ${insights.products.length > 0 ? insights.products.join(', ') : 'Not found'}
+- Pricing: ${insights.pricing}
+- Brand Messaging: ${insights.brandMessaging}
+- Unique Selling Points: ${insights.uniqueSellingPoints.length > 0 ? insights.uniqueSellingPoints.join(', ') : 'Not found'}
+- Key Benefits: ${insights.keyBenefits.length > 0 ? insights.keyBenefits.join(', ') : 'Not found'}
+${insights.testimonials.length > 0 ? `- Customer Testimonials: ${insights.testimonials.slice(0, 3).join(' | ')}` : ''}
+`;
+  }
+
   const userPrompt = `Create 10 DTC ad concepts for the following brand:
 
 **Brand Name:** ${submission.brandName}
@@ -90,13 +107,14 @@ export async function generateAdConcepts(submission: SubmissionData): Promise<Ad
 **Target Audience:** ${submission.targetAudience}
 ${submission.website ? `**Website:** ${submission.website}` : ''}
 ${submission.additionalInfo ? `**Additional Info:** ${submission.additionalInfo}` : ''}
-
+${websiteSection}
 Generate 10 unique ad concepts that:
 1. Leverage ${submission.founderName}'s ${submission.medicalCredentials} credentials
 2. Address the challenge: "${submission.biggestChallenge}"
 3. Resonate with the target audience: "${submission.targetAudience}"
 4. Are appropriate for ${submission.productType} products
 5. Use a variety of hook types and platforms
+${submission.websiteInsights ? '6. Incorporate specific products, benefits, and messaging from the website analysis above' : ''}
 
 Return ONLY valid JSON, no markdown formatting or code blocks.`;
 

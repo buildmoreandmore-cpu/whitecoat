@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { generateAdConcepts, AdConcept } from '@/lib/claude';
 import { generateImagesParallel, ImageGenerationResult } from '@/lib/glif';
 import { generateAllImagePrompts, compileBriefHtml } from '@/lib/brief-generator';
+import { getWebsiteInsights, WebsiteInsights } from '@/lib/website-scraper';
 
 export async function POST(
   request: Request,
@@ -38,6 +39,25 @@ export async function POST(
       });
     }
 
+    // Step 0: Scrape website for insights (if URL provided)
+    let websiteInsights: WebsiteInsights | null = null;
+    if (submission.website) {
+      console.log('Analyzing website for insights...');
+      try {
+        websiteInsights = await getWebsiteInsights(submission.website);
+        if (websiteInsights) {
+          console.log('Website insights extracted:', {
+            products: websiteInsights.products.length,
+            hasMessaging: !!websiteInsights.brandMessaging,
+            usps: websiteInsights.uniqueSellingPoints.length,
+          });
+        }
+      } catch (error) {
+        console.error('Website analysis failed (continuing without):', error);
+        // Continue without website insights - not a fatal error
+      }
+    }
+
     // Step 1: Generate 10 ad concepts using Claude
     console.log('Generating ad concepts...');
     let concepts: AdConcept[];
@@ -53,6 +73,7 @@ export async function POST(
         targetAudience: submission.targetAudience,
         website: submission.website,
         additionalInfo: submission.additionalInfo,
+        websiteInsights,
       });
     } catch (error) {
       console.error('Failed to generate ad concepts:', error);
