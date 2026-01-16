@@ -72,6 +72,7 @@ export default function BriefGenerator({
   })
   const [images, setImages] = useState<GeneratedImage[]>(initialImages)
   const [error, setError] = useState<string | null>(null)
+  const [imageWarning, setImageWarning] = useState<string | null>(null)
   const [showGallery, setShowGallery] = useState(false)
 
   // Fetch status while generating
@@ -111,6 +112,7 @@ export default function BriefGenerator({
   const handleGenerate = async () => {
     setIsGenerating(true)
     setError(null)
+    setImageWarning(null)
     onStatusChange('generating')
 
     try {
@@ -133,6 +135,15 @@ export default function BriefGenerator({
         } catch {
           // Ignore parse errors
         }
+      }
+
+      // Check for image generation failures
+      if (data.imagesFailed > 0) {
+        let warningMsg = `${data.imagesFailed} of ${data.imagesFailed + data.imagesGenerated} images failed to generate.`
+        if (data.imageSampleErrors && data.imageSampleErrors.length > 0) {
+          warningMsg += ` Error: ${data.imageSampleErrors[0]}`
+        }
+        setImageWarning(warningMsg)
       }
 
       onStatusChange('generated')
@@ -229,6 +240,31 @@ export default function BriefGenerator({
               <div>
                 <p className="text-sm font-medium text-red-800">Generation Failed</p>
                 <p className="text-sm text-red-600 mt-1">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Image Generation Warning */}
+        {imageWarning && !isGenerating && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-amber-800">Image Generation Warning</p>
+                <p className="text-sm text-amber-600 mt-1">{imageWarning}</p>
               </div>
             </div>
           </div>

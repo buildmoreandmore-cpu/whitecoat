@@ -84,8 +84,24 @@ export async function POST(
         imagePrompts,
         (completed, total, result) => {
           console.log(`Image generation progress: ${completed}/${total}`);
+          if (result.error) {
+            console.error(`Image generation error for Ad ${result.adNumber}-${result.imageNumber}: ${result.error}`);
+          }
         }
       );
+
+      // Log summary of image generation results
+      const successCount = imageResults.filter(r => r.imageUrl !== null).length;
+      const failCount = imageResults.filter(r => r.error !== null).length;
+      console.log(`Image generation complete: ${successCount} succeeded, ${failCount} failed`);
+
+      if (failCount > 0) {
+        const sampleErrors = imageResults
+          .filter(r => r.error !== null)
+          .slice(0, 3)
+          .map(r => r.error);
+        console.error('Sample image generation errors:', sampleErrors);
+      }
     } catch (error) {
       console.error('Failed to generate images:', error);
       // Continue with partial results or no images
@@ -147,12 +163,17 @@ export async function POST(
 
     console.log('Brief generation complete!');
 
+    // Collect sample errors for debugging
+    const failedImages = imageResults.filter(r => r.error !== null);
+    const sampleErrors = failedImages.slice(0, 3).map(r => r.error);
+
     return NextResponse.json({
       success: true,
       submission: updatedSubmission,
       conceptsCount: concepts.length,
       imagesGenerated: successfulImages.length,
-      imagesFailed: imageResults.length - successfulImages.length,
+      imagesFailed: failedImages.length,
+      imageSampleErrors: sampleErrors.length > 0 ? sampleErrors : undefined,
     });
   } catch (error) {
     console.error('Brief generation error:', error);
