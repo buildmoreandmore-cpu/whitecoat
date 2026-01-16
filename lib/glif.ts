@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
 const GLIF_API_URL = 'https://simple-api.glif.app/clozwqgs60013l80fkgmtf49o';
 const MAX_CONCURRENT_REQUESTS = 2;
 const REQUEST_DELAY_MS = 2000;
@@ -9,49 +11,104 @@ interface GlifResponse {
   error?: string;
 }
 
+// Gemini image generation as backup
+async function generateImageWithGemini(prompt: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY not set for backup image generation');
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-preview-image-generation' });
+
+  const result = await model.generateContent({
+    contents: [{
+      role: 'user',
+      parts: [{ text: `Generate an image: ${prompt}` }]
+    }],
+    generationConfig: {
+      responseModalities: ['image', 'text'],
+    } as any,
+  });
+
+  const response = result.response;
+  const parts = response.candidates?.[0]?.content?.parts || [];
+
+  for (const part of parts) {
+    if ((part as any).inlineData) {
+      const inlineData = (part as any).inlineData;
+      // Return as base64 data URL
+      return `data:${inlineData.mimeType};base64,${inlineData.data}`;
+    }
+  }
+
+  throw new Error('Gemini did not return an image');
+}
+
 async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function generateImage(prompt: string, retryCount = 0): Promise<string> {
+export async function generateImage(prompt: string, retryCount = 0, useGeminiFallback = true): Promise<string> {
   const token = process.env.GLIF_API_TOKEN;
 
+  // If no Glif token, go straight to Gemini
   if (!token) {
+    if (useGeminiFallback) {
+      console.log('No GLIF_API_TOKEN, using Gemini fallback');
+      return generateImageWithGemini(prompt);
+    }
     throw new Error('GLIF_API_TOKEN environment variable is not set');
   }
 
-  const response = await fetch(GLIF_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ input: prompt }),
-  });
+  try {
+    const response = await fetch(GLIF_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ input: prompt }),
+    });
 
-  // Handle rate limiting with retry
-  if (response.status === 429 && retryCount < MAX_RETRIES) {
-    console.log(`Rate limited, retrying in ${RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-    await delay(RETRY_DELAY_MS * (retryCount + 1)); // Exponential backoff
-    return generateImage(prompt, retryCount + 1);
+    // Handle rate limiting with retry
+    if (response.status === 429) {
+      if (retryCount < MAX_RETRIES) {
+        console.log(`Rate limited, retrying in ${RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+        await delay(RETRY_DELAY_MS * (retryCount + 1)); // Exponential backoff
+        return generateImage(prompt, retryCount + 1, useGeminiFallback);
+      }
+      // After max retries, fall back to Gemini
+      if (useGeminiFallback) {
+        console.log('Glif rate limit exceeded after retries, falling back to Gemini');
+        return generateImageWithGemini(prompt);
+      }
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Glif API error: ${response.status} - ${errorText}`);
+    }
+
+    const data: GlifResponse = await response.json();
+
+    if (data.error) {
+      throw new Error(`Glif API error: ${data.error}`);
+    }
+
+    if (!data.output) {
+      throw new Error('Glif API returned no output');
+    }
+
+    return data.output;
+  } catch (error) {
+    // On any Glif error, try Gemini as fallback
+    if (useGeminiFallback) {
+      console.log(`Glif failed: ${error instanceof Error ? error.message : 'Unknown error'}, trying Gemini fallback`);
+      return generateImageWithGemini(prompt);
+    }
+    throw error;
   }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Glif API error: ${response.status} - ${errorText}`);
-  }
-
-  const data: GlifResponse = await response.json();
-
-  if (data.error) {
-    throw new Error(`Glif API error: ${data.error}`);
-  }
-
-  if (!data.output) {
-    throw new Error('Glif API returned no output');
-  }
-
-  return data.output;
 }
 
 export interface ImageGenerationResult {
