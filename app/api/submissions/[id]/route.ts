@@ -33,7 +33,7 @@ export async function GET(
   return NextResponse.json(submission)
 }
 
-// PATCH update submission status
+// PATCH update submission fields
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -46,14 +46,70 @@ export async function PATCH(
 
   const body = await request.json()
 
+  // Build update data object with only provided fields
+  const updateData: Record<string, unknown> = {}
+
+  const allowedFields = [
+    'brandName',
+    'founderName',
+    'email',
+    'website',
+    'medicalCredentials',
+    'specialty',
+    'productType',
+    'currentRevenue',
+    'biggestChallenge',
+    'targetAudience',
+    'timeline',
+    'howDidYouHear',
+    'additionalInfo',
+    'status',
+    'pdfUrl',
+    'sentAt',
+  ]
+
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) {
+      updateData[field] = body[field]
+    }
+  }
+
   const submission = await prisma.submission.update({
     where: { id: params.id },
-    data: {
-      status: body.status,
-      pdfUrl: body.pdfUrl,
-      sentAt: body.sentAt,
+    data: updateData,
+    include: {
+      generatedImages: {
+        orderBy: [
+          { adNumber: 'asc' },
+          { imageNumber: 'asc' },
+        ],
+      },
     },
   })
 
   return NextResponse.json(submission)
+}
+
+// DELETE submission
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions)
+
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Delete related generated images first
+  await prisma.generatedImage.deleteMany({
+    where: { submissionId: params.id },
+  })
+
+  // Delete the submission
+  await prisma.submission.delete({
+    where: { id: params.id },
+  })
+
+  return NextResponse.json({ success: true })
 }
