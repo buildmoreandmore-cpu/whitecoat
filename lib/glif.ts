@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI, Modality } from '@google/genai';
 
 const GLIF_API_URL = 'https://simple-api.glif.app/clozwqgs60013l80fkgmtf49o';
 const MAX_CONCURRENT_REQUESTS = 2;
@@ -18,27 +18,20 @@ async function generateImageWithGemini(prompt: string): Promise<string> {
     throw new Error('GEMINI_API_KEY not set for backup image generation');
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-preview-image-generation' });
+  const ai = new GoogleGenAI({ apiKey });
 
-  const result = await model.generateContent({
-    contents: [{
-      role: 'user',
-      parts: [{ text: `Generate an image: ${prompt}` }]
-    }],
-    generationConfig: {
-      responseModalities: ['image', 'text'],
-    } as any,
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-preview-image-generation',
+    contents: `Generate an image: ${prompt}`,
+    config: {
+      responseModalities: [Modality.TEXT, Modality.IMAGE],
+    },
   });
 
-  const response = result.response;
-  const parts = response.candidates?.[0]?.content?.parts || [];
-
-  for (const part of parts) {
-    if ((part as any).inlineData) {
-      const inlineData = (part as any).inlineData;
-      // Return as base64 data URL
-      return `data:${inlineData.mimeType};base64,${inlineData.data}`;
+  // Extract image from response
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
     }
   }
 

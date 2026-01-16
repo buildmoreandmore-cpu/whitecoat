@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 export interface AdConcept {
   adNumber: number;
@@ -76,8 +76,7 @@ export async function generateAdConcepts(submission: SubmissionData): Promise<Ad
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const ai = new GoogleGenAI({ apiKey });
 
   const userPrompt = `Create 10 DTC ad concepts for the following brand:
 
@@ -101,21 +100,16 @@ Generate 10 unique ad concepts that:
 
 Return ONLY valid JSON, no markdown formatting or code blocks.`;
 
-  const result = await model.generateContent({
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: DTC_INTELLIGENCE_BRIEF_SYSTEM_PROMPT + '\n\n' + userPrompt }],
-      },
-    ],
-    generationConfig: {
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.0-flash',
+    contents: DTC_INTELLIGENCE_BRIEF_SYSTEM_PROMPT + '\n\n' + userPrompt,
+    config: {
       temperature: 0.8,
       maxOutputTokens: 8000,
     },
   });
 
-  const response = result.response;
-  let jsonText = response.text().trim();
+  let jsonText = response.text?.trim() || '';
 
   // Remove markdown code blocks if present
   if (jsonText.startsWith('```json')) {
