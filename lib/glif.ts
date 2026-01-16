@@ -1,13 +1,19 @@
 const GLIF_API_URL = 'https://simple-api.glif.app/clozwqgs60013l80fkgmtf49o';
-const MAX_CONCURRENT_REQUESTS = 5;
-const REQUEST_DELAY_MS = 200;
+const MAX_CONCURRENT_REQUESTS = 2;
+const REQUEST_DELAY_MS = 2000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 5000;
 
 interface GlifResponse {
   output?: string;
   error?: string;
 }
 
-export async function generateImage(prompt: string): Promise<string> {
+async function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function generateImage(prompt: string, retryCount = 0): Promise<string> {
   const token = process.env.GLIF_API_TOKEN;
 
   if (!token) {
@@ -22,6 +28,13 @@ export async function generateImage(prompt: string): Promise<string> {
     },
     body: JSON.stringify({ input: prompt }),
   });
+
+  // Handle rate limiting with retry
+  if (response.status === 429 && retryCount < MAX_RETRIES) {
+    console.log(`Rate limited, retrying in ${RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+    await delay(RETRY_DELAY_MS * (retryCount + 1)); // Exponential backoff
+    return generateImage(prompt, retryCount + 1);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -39,10 +52,6 @@ export async function generateImage(prompt: string): Promise<string> {
   }
 
   return data.output;
-}
-
-async function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export interface ImageGenerationResult {
