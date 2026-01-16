@@ -27,6 +27,25 @@ model Submission {
   sentAt             DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+
+  // Brief generation fields
+  briefHtml          String?   @db.Text
+  briefGeneratedAt   DateTime?
+  adConcepts         String?   @db.Text  // JSON string of generated ad concepts
+  generatedImages    GeneratedImage[]
+}
+
+model GeneratedImage {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  adNumber     Int        // 1-10 (which ad concept)
+  imageNumber  Int        // 1-3 (which variant)
+  prompt       String     @db.Text
+  imageUrl     String
+  createdAt    DateTime   @default(now())
+
+  @@index([submissionId])
 }
 
 model User {

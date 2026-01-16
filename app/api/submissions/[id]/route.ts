@@ -16,6 +16,14 @@ export async function GET(
 
   const submission = await prisma.submission.findUnique({
     where: { id: params.id },
+    include: {
+      generatedImages: {
+        orderBy: [
+          { adNumber: 'asc' },
+          { imageNumber: 'asc' },
+        ],
+      },
+    },
   })
 
   if (!submission) {

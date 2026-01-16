@@ -3,6 +3,14 @@
 import { useState } from 'react'
 import PDFUploader from './PDFUploader'
 import SendEmailButton from './SendEmailButton'
+import BriefGenerator from './BriefGenerator'
+
+interface GeneratedImage {
+  id: string
+  adNumber: number
+  imageNumber: number
+  imageUrl: string
+}
 
 interface Submission {
   id: string
@@ -23,6 +31,10 @@ interface Submission {
   pdfUrl: string | null
   sentAt: Date | null
   createdAt: Date
+  briefHtml: string | null
+  briefGeneratedAt: Date | null
+  adConcepts: string | null
+  generatedImages: GeneratedImage[]
 }
 
 interface SubmissionDetailProps {
@@ -31,12 +43,16 @@ interface SubmissionDetailProps {
 
 const statusColors: Record<string, { bg: string; text: string; border: string }> = {
   new: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+  generating: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+  generated: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
   in_progress: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
   sent: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 }
 
 const statusLabels: Record<string, string> = {
   new: 'New',
+  generating: 'Generating Brief',
+  generated: 'Brief Ready',
   in_progress: 'In Progress',
   sent: 'Sent',
 }
@@ -58,6 +74,13 @@ export default function SubmissionDetail({ submission }: SubmissionDetailProps) 
       ...prev,
       status: 'sent',
       sentAt: new Date(),
+    }))
+  }
+
+  const handleBriefStatusChange = (newStatus: string) => {
+    setCurrentSubmission((prev) => ({
+      ...prev,
+      status: newStatus,
     }))
   }
 
@@ -153,6 +176,17 @@ export default function SubmissionDetail({ submission }: SubmissionDetailProps) 
 
       {/* Right: Actions Panel */}
       <div className="space-y-6">
+        {/* AI Brief Generator */}
+        <BriefGenerator
+          submissionId={currentSubmission.id}
+          brandName={currentSubmission.brandName}
+          initialStatus={currentSubmission.status}
+          initialBriefHtml={currentSubmission.briefHtml}
+          initialAdConcepts={currentSubmission.adConcepts}
+          initialImages={currentSubmission.generatedImages || []}
+          onStatusChange={handleBriefStatusChange}
+        />
+
         {/* PDF Upload */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">

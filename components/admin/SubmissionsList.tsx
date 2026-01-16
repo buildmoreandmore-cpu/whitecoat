@@ -17,12 +17,16 @@ interface SubmissionsListProps {
 
 const statusColors: Record<string, { bg: string; text: string }> = {
   new: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  generating: { bg: 'bg-purple-100', text: 'text-purple-700' },
+  generated: { bg: 'bg-cyan-100', text: 'text-cyan-700' },
   in_progress: { bg: 'bg-amber-100', text: 'text-amber-700' },
   sent: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
 }
 
 const statusLabels: Record<string, string> = {
   new: 'New',
+  generating: 'Generating',
+  generated: 'Brief Ready',
   in_progress: 'In Progress',
   sent: 'Sent',
 }
