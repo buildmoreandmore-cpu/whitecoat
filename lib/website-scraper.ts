@@ -28,19 +28,32 @@ Website content to analyze:`;
 
 export async function scrapeWebsite(url: string): Promise<string> {
   try {
-    // Ensure URL has protocol
-    let fetchUrl = url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      fetchUrl = `https://${url}`;
+    // Ensure URL has protocol and is valid
+    let fetchUrl = url.trim();
+    if (!fetchUrl.startsWith('http://') && !fetchUrl.startsWith('https://')) {
+      fetchUrl = `https://${fetchUrl}`;
     }
+
+    // Validate URL format
+    try {
+      new URL(fetchUrl);
+    } catch {
+      throw new Error(`Invalid URL format: ${url}`);
+    }
+
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(fetchUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; WhiteCoatBrief/1.0)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
-      signal: AbortSignal.timeout(10000), // 10 second timeout
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch website: ${response.status}`);
