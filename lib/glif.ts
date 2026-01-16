@@ -1,6 +1,6 @@
 import { GoogleGenAI, Modality } from '@google/genai';
 
-const GLIF_API_URL = 'https://simple-api.glif.app/clozwqgs60013l80fkgmtf49o';
+const GLIF_API_URL = 'https://simple-api.glif.app/clzmh32ij00069q49wni49ill';
 const MAX_CONCURRENT_REQUESTS = 2;
 const REQUEST_DELAY_MS = 2000;
 const MAX_RETRIES = 2;
