@@ -93,9 +93,9 @@ export async function POST(
       data: { adConcepts: JSON.stringify(concepts) },
     });
 
-    // Step 2: Generate image prompts for all concepts
+    // Step 2: Generate image prompts for all concepts (with visual style if available)
     console.log('Generating image prompts...');
-    const imagePrompts = generateAllImagePrompts(concepts, submission.brandName);
+    const imagePrompts = generateAllImagePrompts(concepts, submission.brandName, websiteInsights?.visualStyle);
 
     // Step 3: Generate images via Glif API (in parallel batches)
     console.log('Generating images via Glif API...');

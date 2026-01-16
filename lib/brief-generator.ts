@@ -1,4 +1,5 @@
 import { AdConcept } from './claude';
+import { VisualStyle } from './website-scraper';
 
 export interface ImagePrompt {
   prompt: string;
@@ -13,26 +14,37 @@ export interface GeneratedImageData {
   imageUrl: string;
 }
 
-export function generateImagePrompts(concept: AdConcept, brandName: string): ImagePrompt[] {
+export function generateImagePrompts(
+  concept: AdConcept,
+  brandName: string,
+  visualStyle?: VisualStyle | null
+): ImagePrompt[] {
   const { adNumber, title, visualAsset, hookType, targetEmotion } = concept;
   const { description, style, keyElements } = visualAsset;
 
+  // Build style modifier from website visual analysis
+  let styleModifier = '';
+  if (visualStyle) {
+    const colors = visualStyle.colorPalette.slice(0, 3).join(', ');
+    styleModifier = `Brand visual style: ${visualStyle.overallAesthetic}. Color palette: ${colors}. Photography style: ${visualStyle.photographyStyle}. Mood: ${visualStyle.brandMood}. `;
+  }
+
   // Generate 3 variations of the image prompt
-  const basePrompt = `Professional healthcare/medical advertising photography. ${description}. Style: ${style}. Brand: ${brandName}.`;
+  const basePrompt = `Professional healthcare/medical advertising photography. ${description}. Style: ${style}. Brand: ${brandName}. ${styleModifier}`;
 
   const prompts: ImagePrompt[] = [
     {
-      prompt: `${basePrompt} Key elements: ${keyElements.join(', ')}. Emotion: ${targetEmotion}. Clean, modern, trustworthy aesthetic. High-quality product photography with medical credibility.`,
+      prompt: `${basePrompt} Key elements: ${keyElements.join(', ')}. Emotion: ${targetEmotion}. High-quality product photography with medical credibility.`,
       adNumber,
       imageNumber: 1,
     },
     {
-      prompt: `${basePrompt} Focus on: ${keyElements[0] || 'product'}. ${hookType} appeal. Lifestyle context showing real-world application. Warm, approachable lighting. Professional medical brand imagery.`,
+      prompt: `${basePrompt} Focus on: ${keyElements[0] || 'product'}. ${hookType} appeal. Lifestyle context showing real-world application. Professional medical brand imagery.`,
       adNumber,
       imageNumber: 2,
     },
     {
-      prompt: `${basePrompt} Emphasizing: ${keyElements.slice(0, 2).join(' and ') || 'brand identity'}. Social media optimized composition. Bold, eye-catching for scroll-stopping. ${targetEmotion} emotion. Healthcare innovation aesthetic.`,
+      prompt: `${basePrompt} Emphasizing: ${keyElements.slice(0, 2).join(' and ') || 'brand identity'}. Social media optimized composition. Bold, eye-catching for scroll-stopping. ${targetEmotion} emotion.`,
       adNumber,
       imageNumber: 3,
     },
@@ -41,11 +53,15 @@ export function generateImagePrompts(concept: AdConcept, brandName: string): Ima
   return prompts;
 }
 
-export function generateAllImagePrompts(concepts: AdConcept[], brandName: string): ImagePrompt[] {
+export function generateAllImagePrompts(
+  concepts: AdConcept[],
+  brandName: string,
+  visualStyle?: VisualStyle | null
+): ImagePrompt[] {
   const allPrompts: ImagePrompt[] = [];
 
   for (const concept of concepts) {
-    const conceptPrompts = generateImagePrompts(concept, brandName);
+    const conceptPrompts = generateImagePrompts(concept, brandName, visualStyle);
     allPrompts.push(...conceptPrompts);
   }
 

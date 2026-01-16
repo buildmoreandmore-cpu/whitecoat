@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { WebsiteInsights } from './website-scraper';
+import { WebsiteInsights, VisualStyle } from './website-scraper';
 
 export interface AdConcept {
   adNumber: number;
@@ -82,6 +82,7 @@ export async function generateAdConcepts(submission: SubmissionData): Promise<Ad
 
   // Build website insights section if available
   let websiteSection = '';
+  let visualStyleSection = '';
   if (submission.websiteInsights) {
     const insights = submission.websiteInsights;
     websiteSection = `
@@ -93,6 +94,20 @@ export async function generateAdConcepts(submission: SubmissionData): Promise<Ad
 - Key Benefits: ${insights.keyBenefits.length > 0 ? insights.keyBenefits.join(', ') : 'Not found'}
 ${insights.testimonials.length > 0 ? `- Customer Testimonials: ${insights.testimonials.slice(0, 3).join(' | ')}` : ''}
 `;
+
+    // Add visual style if available
+    if (insights.visualStyle) {
+      const vs = insights.visualStyle;
+      visualStyleSection = `
+**Brand Visual Style (from website):**
+- Color Palette: ${vs.colorPalette.join(', ')}
+- Photography Style: ${vs.photographyStyle}
+- Overall Aesthetic: ${vs.overallAesthetic}
+- Brand Mood: ${vs.brandMood}
+
+IMPORTANT: When describing visual assets, match this brand's existing visual style. Use their color palette, photography style, and aesthetic.
+`;
+    }
   }
 
   const userPrompt = `Create 10 DTC ad concepts for the following brand:
@@ -107,7 +122,7 @@ ${insights.testimonials.length > 0 ? `- Customer Testimonials: ${insights.testim
 **Target Audience:** ${submission.targetAudience}
 ${submission.website ? `**Website:** ${submission.website}` : ''}
 ${submission.additionalInfo ? `**Additional Info:** ${submission.additionalInfo}` : ''}
-${websiteSection}
+${websiteSection}${visualStyleSection}
 Generate 10 unique ad concepts that:
 1. Leverage ${submission.founderName}'s ${submission.medicalCredentials} credentials
 2. Address the challenge: "${submission.biggestChallenge}"
