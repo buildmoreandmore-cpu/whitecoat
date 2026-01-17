@@ -5,12 +5,19 @@ import { useRouter } from 'next/navigation'
 import PDFUploader from './PDFUploader'
 import SendEmailButton from './SendEmailButton'
 import BriefGenerator from './BriefGenerator'
+import ProductPhotoUploader from './ProductPhotoUploader'
 
 interface GeneratedImage {
   id: string
   adNumber: number
   imageNumber: number
   imageUrl: string
+}
+
+interface ProductPhoto {
+  id: string
+  url: string
+  filename: string
 }
 
 interface Submission {
@@ -36,6 +43,7 @@ interface Submission {
   briefGeneratedAt: Date | null
   adConcepts: string | null
   generatedImages: GeneratedImage[]
+  productPhotos: ProductPhoto[]
 }
 
 interface SubmissionDetailProps {
@@ -314,6 +322,20 @@ export default function SubmissionDetail({ submission }: SubmissionDetailProps) 
 
       {/* Right: Actions Panel */}
       <div className="space-y-6">
+        {/* Product Photos */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">
+            Product Photos
+          </h3>
+          <p className="text-sm text-slate-500 mb-4">
+            Upload product photos to include in the brief generation. These help create more accurate visual concepts.
+          </p>
+          <ProductPhotoUploader
+            submissionId={currentSubmission.id}
+            initialPhotos={currentSubmission.productPhotos || []}
+          />
+        </div>
+
         {/* AI Brief Generator */}
         <BriefGenerator
           submissionId={currentSubmission.id}

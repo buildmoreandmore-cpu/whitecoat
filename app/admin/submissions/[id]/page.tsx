@@ -25,6 +25,9 @@ export default async function SubmissionPage({
           { imageNumber: 'asc' },
         ],
       },
+      productPhotos: {
+        orderBy: { createdAt: 'asc' },
+      },
     },
   })
 

@@ -83,8 +83,21 @@ export async function generateAdConcepts(submission: SubmissionData): Promise<Ad
   // Build website insights section if available
   let websiteSection = '';
   let visualStyleSection = '';
+  let productsSection = '';
   if (submission.websiteInsights) {
     const insights = submission.websiteInsights;
+
+    // Build detailed products section if structured products are available
+    if (insights.structuredProducts && insights.structuredProducts.length > 0) {
+      const productDetails = insights.structuredProducts.map(p =>
+        `  - ${p.name}${p.price ? ` (${p.price})` : ''}${p.description ? `: ${p.description}` : ''}${p.category ? ` [${p.category}]` : ''}`
+      ).join('\n');
+      productsSection = `
+**Product Catalog (IMPORTANT - use these exact product names in ads):**
+${productDetails}
+`;
+    }
+
     websiteSection = `
 **Website Analysis:**
 - Products/Services: ${insights.products.length > 0 ? insights.products.join(', ') : 'Not found'}
@@ -92,18 +105,24 @@ export async function generateAdConcepts(submission: SubmissionData): Promise<Ad
 - Brand Messaging: ${insights.brandMessaging}
 - Unique Selling Points: ${insights.uniqueSellingPoints.length > 0 ? insights.uniqueSellingPoints.join(', ') : 'Not found'}
 - Key Benefits: ${insights.keyBenefits.length > 0 ? insights.keyBenefits.join(', ') : 'Not found'}
+${insights.certifications && insights.certifications.length > 0 ? `- Certifications/Trust Badges: ${insights.certifications.join(', ')}` : ''}
 ${insights.testimonials.length > 0 ? `- Customer Testimonials: ${insights.testimonials.slice(0, 3).join(' | ')}` : ''}
-`;
+${productsSection}`;
 
     // Add visual style if available
-    if (insights.visualStyle) {
+    const brandColors = insights.brandColors && insights.brandColors.length > 0
+      ? insights.brandColors.join(', ')
+      : null;
+
+    if (insights.visualStyle || brandColors) {
       const vs = insights.visualStyle;
       visualStyleSection = `
 **Brand Visual Style (from website):**
-- Color Palette: ${vs.colorPalette.join(', ')}
-- Photography Style: ${vs.photographyStyle}
-- Overall Aesthetic: ${vs.overallAesthetic}
-- Brand Mood: ${vs.brandMood}
+${brandColors ? `- Brand Colors (from CSS): ${brandColors}` : ''}
+${vs ? `- Color Palette (from images): ${vs.colorPalette.join(', ')}` : ''}
+${vs ? `- Photography Style: ${vs.photographyStyle}` : ''}
+${vs ? `- Overall Aesthetic: ${vs.overallAesthetic}` : ''}
+${vs ? `- Brand Mood: ${vs.brandMood}` : ''}
 
 IMPORTANT: When describing visual assets, match this brand's existing visual style. Use their color palette, photography style, and aesthetic.
 `;
@@ -133,16 +152,30 @@ ${submission.websiteInsights ? '6. Incorporate specific products, benefits, and 
 
 Return ONLY valid JSON, no markdown formatting or code blocks.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: DTC_INTELLIGENCE_BRIEF_SYSTEM_PROMPT + '\n\n' + userPrompt,
-    config: {
-      temperature: 0.8,
-      maxOutputTokens: 8000,
-    },
-  });
+  console.log('[generateAdConcepts] Calling Gemini API...');
+  console.log('[generateAdConcepts] Prompt length:', (DTC_INTELLIGENCE_BRIEF_SYSTEM_PROMPT + '\n\n' + userPrompt).length);
+
+  let response;
+  try {
+    response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: DTC_INTELLIGENCE_BRIEF_SYSTEM_PROMPT + '\n\n' + userPrompt,
+      config: {
+        temperature: 0.8,
+        maxOutputTokens: 8000,
+      },
+    });
+    console.log('[generateAdConcepts] Gemini API response received');
+  } catch (error) {
+    console.error('[generateAdConcepts] Gemini API call failed:', error);
+    console.error('[generateAdConcepts] Error name:', error instanceof Error ? error.name : 'Unknown');
+    console.error('[generateAdConcepts] Error message:', error instanceof Error ? error.message : String(error));
+    throw error;
+  }
 
   let jsonText = response.text?.trim() || '';
+  console.log('[generateAdConcepts] Response length:', jsonText.length);
+  console.log('[generateAdConcepts] Response preview:', jsonText.slice(0, 200) + '...');
 
   // Remove markdown code blocks if present
   if (jsonText.startsWith('```json')) {
@@ -158,11 +191,14 @@ Return ONLY valid JSON, no markdown formatting or code blocks.`;
   try {
     const parsed = JSON.parse(jsonText);
     if (!parsed.adConcepts || !Array.isArray(parsed.adConcepts)) {
+      console.error('[generateAdConcepts] Invalid structure - adConcepts missing or not array');
       throw new Error('Invalid response structure: missing adConcepts array');
     }
+    console.log('[generateAdConcepts] Successfully parsed', parsed.adConcepts.length, 'ad concepts');
     return parsed.adConcepts as AdConcept[];
   } catch (error) {
-    console.error('Failed to parse Gemini response:', jsonText);
+    console.error('[generateAdConcepts] Failed to parse JSON:', error);
+    console.error('[generateAdConcepts] Raw response:', jsonText.slice(0, 500));
     throw new Error(`Failed to parse ad concepts: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

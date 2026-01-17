@@ -1,5 +1,5 @@
 import { AdConcept } from './claude';
-import { VisualStyle } from './website-scraper';
+import { VisualStyle, Product } from './website-scraper';
 
 export interface ImagePrompt {
   prompt: string;
@@ -14,23 +14,58 @@ export interface GeneratedImageData {
   imageUrl: string;
 }
 
+export interface ImagePromptOptions {
+  visualStyle?: VisualStyle | null;
+  brandColors?: string[];
+  productNames?: string[];
+}
+
 export function generateImagePrompts(
   concept: AdConcept,
   brandName: string,
-  visualStyle?: VisualStyle | null
+  options?: ImagePromptOptions
 ): ImagePrompt[] {
   const { adNumber, title, visualAsset, hookType, targetEmotion } = concept;
   const { description, style, keyElements } = visualAsset;
 
+  const visualStyle = options?.visualStyle;
+  const brandColors = options?.brandColors || [];
+  const productNames = options?.productNames || [];
+
+  // Helper to sanitize strings for prompts (remove special chars that might cause issues)
+  const sanitize = (str: string): string => {
+    return str.replace(/[^\w\s\-.,'"$]/g, '').trim();
+  };
+
   // Build style modifier from website visual analysis
   let styleModifier = '';
   if (visualStyle) {
-    const colors = visualStyle.colorPalette.slice(0, 3).join(', ');
-    styleModifier = `Brand visual style: ${visualStyle.overallAesthetic}. Color palette: ${colors}. Photography style: ${visualStyle.photographyStyle}. Mood: ${visualStyle.brandMood}. `;
+    const colors = visualStyle.colorPalette.slice(0, 3).map(sanitize).join(', ');
+    styleModifier = `Brand visual style: ${sanitize(visualStyle.overallAesthetic)}. Color palette: ${colors}. Photography style: ${sanitize(visualStyle.photographyStyle)}. Mood: ${sanitize(visualStyle.brandMood)}. `;
+  }
+
+  // Add brand colors from CSS if available
+  if (brandColors.length > 0 && !styleModifier.includes('Color palette')) {
+    // Filter to only include valid-looking hex colors (don't sanitize - hex format is safe)
+    const cleanColors = brandColors
+      .slice(0, 4)
+      .filter(c => /^#[0-9A-Fa-f]{3,6}$/.test(c));
+    if (cleanColors.length > 0) {
+      styleModifier += `Brand colors: ${cleanColors.join(', ')}. `;
+    }
+  }
+
+  // Add product name context if available
+  let productContext = '';
+  if (productNames.length > 0) {
+    const cleanNames = productNames.slice(0, 3).map(sanitize).filter(n => n.length > 0);
+    if (cleanNames.length > 0) {
+      productContext = `Product(s): ${cleanNames.join(', ')}. `;
+    }
   }
 
   // Generate 3 variations of the image prompt
-  const basePrompt = `Professional healthcare/medical advertising photography. ${description}. Style: ${style}. Brand: ${brandName}. ${styleModifier}`;
+  const basePrompt = `Professional healthcare/medical advertising photography. ${description}. Style: ${style}. Brand: ${brandName}. ${productContext}${styleModifier}`;
 
   const prompts: ImagePrompt[] = [
     {
@@ -56,16 +91,21 @@ export function generateImagePrompts(
 export function generateAllImagePrompts(
   concepts: AdConcept[],
   brandName: string,
-  visualStyle?: VisualStyle | null
+  options?: ImagePromptOptions
 ): ImagePrompt[] {
   const allPrompts: ImagePrompt[] = [];
 
   for (const concept of concepts) {
-    const conceptPrompts = generateImagePrompts(concept, brandName, visualStyle);
+    const conceptPrompts = generateImagePrompts(concept, brandName, options);
     allPrompts.push(...conceptPrompts);
   }
 
   return allPrompts;
+}
+
+export interface ProductPhotoForBrief {
+  url: string;
+  filename: string;
 }
 
 export interface SubmissionForBrief {
@@ -79,6 +119,8 @@ export interface SubmissionForBrief {
   targetAudience: string;
   biggestChallenge: string;
   website?: string | null;
+  additionalInfo?: string | null;
+  productPhotos?: ProductPhotoForBrief[];
 }
 
 export function compileBriefHtml(
@@ -92,6 +134,51 @@ export function compileBriefHtml(
     existing.push(img);
     imagesByAd.set(img.adNumber, existing);
   }
+
+  // Build product photos section
+  const productPhotosSection = submission.productPhotos && submission.productPhotos.length > 0
+    ? `
+      <section class="brand-section">
+        <h2 class="section-title">Product Photos</h2>
+        <div class="product-photos-grid">
+          ${submission.productPhotos.map(photo => `
+            <div class="product-photo">
+              <img src="${photo.url}" alt="${photo.filename}" />
+            </div>
+          `).join('')}
+        </div>
+      </section>
+    `
+    : '';
+
+  // Build brand context section
+  const brandContextSection = `
+    <section class="brand-section">
+      <h2 class="section-title">Brand Context</h2>
+      <div class="context-grid">
+        <div class="context-block">
+          <h4>Target Audience</h4>
+          <p>${submission.targetAudience}</p>
+        </div>
+        <div class="context-block">
+          <h4>Biggest Challenge</h4>
+          <p>${submission.biggestChallenge}</p>
+        </div>
+        ${submission.additionalInfo ? `
+        <div class="context-block full-width">
+          <h4>Additional Information</h4>
+          <p>${submission.additionalInfo}</p>
+        </div>
+        ` : ''}
+        ${submission.website ? `
+        <div class="context-block">
+          <h4>Website</h4>
+          <p><a href="${submission.website}" target="_blank" rel="noopener noreferrer">${submission.website}</a></p>
+        </div>
+        ` : ''}
+      </div>
+    </section>
+  `;
 
   const adSections = concepts.map((concept) => {
     const adImages = imagesByAd.get(concept.adNumber) || [];
@@ -242,6 +329,71 @@ export function compileBriefHtml(
       padding-bottom: 12px;
       border-bottom: 2px solid #059669;
       display: inline-block;
+    }
+
+    .brand-section {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 32px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .context-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .context-block {
+      background: #f8fafc;
+      padding: 20px;
+      border-radius: 12px;
+    }
+
+    .context-block.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .context-block h4 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .context-block p {
+      color: #334155;
+      white-space: pre-wrap;
+    }
+
+    .context-block a {
+      color: #059669;
+      text-decoration: none;
+    }
+
+    .context-block a:hover {
+      text-decoration: underline;
+    }
+
+    .product-photos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .product-photo {
+      aspect-ratio: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f1f5f9;
+    }
+
+    .product-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .ad-concept {
@@ -411,7 +563,16 @@ export function compileBriefHtml(
         grid-template-columns: 1fr;
       }
 
-      .ad-concept {
+      .context-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .product-photos-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .ad-concept,
+      .brand-section {
         padding: 24px;
       }
     }
@@ -467,6 +628,8 @@ export function compileBriefHtml(
     </header>
 
     <main>
+      ${productPhotosSection}
+      ${brandContextSection}
       <h2 class="section-title">Ad Concepts (${concepts.length})</h2>
       ${adSections}
     </main>

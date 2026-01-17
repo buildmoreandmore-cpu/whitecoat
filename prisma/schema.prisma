@@ -34,6 +34,18 @@ model Submission {
   briefGeneratedAt   DateTime?
   adConcepts         String?   @db.Text  // JSON string of generated ad concepts
   generatedImages    GeneratedImage[]
+  productPhotos      ProductPhoto[]
+}
+
+model ProductPhoto {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  url          String
+  filename     String
+  createdAt    DateTime   @default(now())
+
+  @@index([submissionId])
 }
 
 model GeneratedImage {

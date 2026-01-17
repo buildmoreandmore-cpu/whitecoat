@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { generateAdConcepts, AdConcept } from '@/lib/claude';
-import { generateImagesParallel, ImageGenerationResult } from '@/lib/glif';
+import { generateImagesParallel, ImageGenerationResult } from '@/lib/image-generator';
 import { generateAllImagePrompts, compileBriefHtml } from '@/lib/brief-generator';
 import { getWebsiteInsights, WebsiteInsights } from '@/lib/website-scraper';
 
@@ -19,7 +19,10 @@ export async function POST(
 
     const submission = await prisma.submission.findUnique({
       where: { id: params.id },
-      include: { generatedImages: true },
+      include: {
+        generatedImages: true,
+        productPhotos: true,
+      },
     });
 
     if (!submission) {
@@ -48,8 +51,11 @@ export async function POST(
         if (websiteInsights) {
           console.log('Website insights extracted:', {
             products: websiteInsights.products.length,
+            structuredProducts: websiteInsights.structuredProducts?.length || 0,
+            brandColors: websiteInsights.brandColors?.length || 0,
             hasMessaging: !!websiteInsights.brandMessaging,
             usps: websiteInsights.uniqueSellingPoints.length,
+            certifications: websiteInsights.certifications?.length || 0,
           });
         }
       } catch (error) {
@@ -93,12 +99,27 @@ export async function POST(
       data: { adConcepts: JSON.stringify(concepts) },
     });
 
-    // Step 2: Generate image prompts for all concepts (with visual style if available)
-    console.log('Generating image prompts...');
-    const imagePrompts = generateAllImagePrompts(concepts, submission.brandName, websiteInsights?.visualStyle);
+    // Step 2: Generate image prompts for all concepts (with visual style, colors, and product names if available)
+    console.log('[generate] Step 2: Generating image prompts...');
+    const productNames = websiteInsights?.structuredProducts?.map(p => p.name) || websiteInsights?.products || [];
+    console.log('[generate] Product names for prompts:', productNames.slice(0, 5));
+    console.log('[generate] Brand colors for prompts:', websiteInsights?.brandColors?.slice(0, 5) || []);
 
-    // Step 3: Generate images via Glif API (in parallel batches)
-    console.log('Generating images via Glif API...');
+    let imagePrompts;
+    try {
+      imagePrompts = generateAllImagePrompts(concepts, submission.brandName, {
+        visualStyle: websiteInsights?.visualStyle,
+        brandColors: websiteInsights?.brandColors || [],
+        productNames,
+      });
+      console.log('[generate] Generated', imagePrompts.length, 'image prompts');
+    } catch (error) {
+      console.error('[generate] Failed to generate image prompts:', error);
+      throw error;
+    }
+
+    // Step 3: Generate images via Gemini (in parallel batches)
+    console.log('Generating images via Gemini...');
     let imageResults: ImageGenerationResult[];
     try {
       imageResults = await generateImagesParallel(
@@ -166,6 +187,11 @@ export async function POST(
         targetAudience: submission.targetAudience,
         biggestChallenge: submission.biggestChallenge,
         website: submission.website,
+        additionalInfo: submission.additionalInfo,
+        productPhotos: submission.productPhotos?.map(p => ({
+          url: p.url,
+          filename: p.filename,
+        })) || [],
       },
       concepts,
       imagesForBrief
